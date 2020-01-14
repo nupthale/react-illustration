@@ -6,7 +6,7 @@
 
 ![代码示例](https://img.alicdn.com/tfs/TB16yh.t.z1gK0jSZLeXXb9kVXa-414-610.jpg)
 
-## 记React第一次Render过程
+## 第一次Render过程
 
 首先看这段代码生成的FiberTree是什么样子的：
 
@@ -21,8 +21,24 @@
 * 看不到的有Host Root和Fiber Root两个节点，这个是内部实现；
 * 在React执行过程中，还未确定是什么类型的组件时，会存在一个中间状态叫IndeterminateComponent，比如在App创建时，它是从Indeterminate状态转为FunctionComponent状态的
 	
+![](https://img.alicdn.com/tfs/TB1PZCdt4v1gK0jSZFFXXb0sXXa-620-278.jpg)
+![](https://img.alicdn.com/tfs/TB1CMmat4n1gK0jSZKPXXXvUXXa-587-928.jpg)
+
+可以发现它并不是多叉树；那么这个结构是如何生成的？下面讲具体过程
+
+#### 生成FiberTree
+
+##### createContainer
+
+在第一次调用render时，会判断是否containerDOM节点上是否有_reactRootContainer属性，如果有，证明已经渲染过，如果没有，则标识是第一次执行；现在假设我们都是第一次，那么第一次执行的时候， 会执行createContainer方法，创建下面的结构：他们的属性如右图，目前稍微留个印象就可以了，其中FiberRootNode几个现在就用到的属性如下：
+	
+* Tag
+* FiberRootNode.current = HostRoot
+* HostRoot.StateNode = FiberRootNode
+* containerInfo
 
 
-## 记React的一次Update过程
+
+## 一次Update过程
 
 
