@@ -127,15 +127,99 @@ scheduleWork(fiber, expirationTime) 接收两个参数，为了简化，先暂�
 ![](https://img.alicdn.com/tfs/TB1Cmqrt.Y1gK0jSZFCXXcwqXXa-637-127.jpg)
 
 断点快照： performSyncWorkOnRoot(root)
+
 此处传入的参数root就是上图的fiberRoot节点，在内部会执行下面的代码：
+
 大体上这个方法做4件事情：
+
 1. prepareFreshStack(root), 执行完这个方法后，会创建一个WIP(Working In Progress)节点，它们的关系如下图：
 ![](https://img.alicdn.com/tfs/TB15lqrt4v1gK0jSZFFXXb0sXXa-545-197.jpg)
 2. 设置EC为RenderContext， executionContext |= RenderContext,  进入Render Phase
 3. 进入workLoop, 这个workLoop就是RenderPhase，做的事情上面介绍过；
 4. workLoop结束后，调用finishSyncRender， 进度Commit Phase，完成视图更新；
 
+下面分针对RenderPhase与CommitPhase分别介绍；
 
+###### Render Phase
+
+先看下workLoop函数里面是什么, 就是一个while循环，结合workInProgress，很容易联系到它会遍历一遍FiberTree；直到workInProgress为null；
+
+![](https://img.alicdn.com/tfs/TB1U.9ot7P2gK0jSZPxXXacQpXa-490-84.jpg)
+
+这个performUnitOfWork内部也是有两个分叉，如果workInProgress.child不为null就一直beginWork，如果为null了就会执行一次completeUnitOfWork，
+
+![](https://img.alicdn.com/tfs/TB1WQqot8v0gK0jSZKbXXbK2FXa-472-614.jpg)
+
+可能看到这个图还是没什么感觉，那么再用快照的方法看下performUnitOfWork和beginWork做了什么事情：下面的图是在performUnitOfWork最后处断点的快照；从上面的状态继续，当前状态如下：
+
+![](https://img.alicdn.com/tfs/TB17aGot1L2gK0jSZPhXXahvXXa-1174-498.jpg)
+
+当执行了第一轮performUnitOfWOrk&beginWork后：
+
+![](https://img.alicdn.com/tfs/TB1dv5ntVT7gK0jSZFpXXaTkpXa-1121-429.jpg)
+
+第二轮performUnitOfWork&beginWork后：
+
+![](https://img.alicdn.com/tfs/TB11g1tt7T2gK0jSZFkXXcIQFXa-1144-640.jpg)
+
+剩余全部performUnitOfWork&beginWork执行后， 我们可以发现它的执行顺序如下：
+
+![](https://img.alicdn.com/tfs/TB1AJKttYj1gK0jSZFOXXc7GpXa-760-622.jpg)
+
+最后提一下，FiberTree的结构并不是二叉树，每个节点就3个分支，一个child，一个sibling，一个return（省略）；所以整体如下图：
+
+![](https://img.alicdn.com/tfs/TB1sjent1T2gK0jSZFvXXXnFXXa-426-295.jpg)
+
+上面看了performUnitOfWork和beginWork，但是在workLoop中我们知道其实这个过程中还执行了completeUnitOfWork&completeWork，它们在workLoop中是交织在一起的，
+结合workLoop和上面介绍了performUnitOfWork, 我们知道每当沿着child走到头了，也就是Next= null的时候，就要执行completeUnitOfWork，当本次completeUnitOfWork执行结束后
+就又回到performUnitOfWork&beginWork；关系如下图：
+
+![](https://img.alicdn.com/tfs/TB1fIert7L0gK0jSZFxXXXWHVXa-734-1070.jpg)
+
+那么completeUnitOfWork做了什么，如果将断点在completeUnitOfWork的doWhile里的尾部，那么会得到如下的一系列快照：
+
+第一次completeUnitOfWork
+
+![](https://img.alicdn.com/tfs/TB1ieStt4D1gK0jSZFyXXciOVXa-756-402.jpg)
+
+第二次completeUnitOfWork
+
+![](https://img.alicdn.com/tfs/TB1eiGqt1H2gK0jSZFEXXcqMpXa-734-362.jpg)
+
+第三次以及后续completeUnitOfWork，从步骤7开始
+
+![](https://img.alicdn.com/tfs/TB1ibettYY1gK0jSZTEXXXDQVXa-741-436.jpg)
+
+Render阶段至此结束，总结下：
+
+这里其实具体代码是怎么调用的，我们并不是很关心，而是想了解经过render，我们得到了什么结果（输出/变化）；
+
+经过第一遍整理，简单的列了比较明显的几个变化（目前不全面）：
+
+1. 生成了完整的FiberTree
+2. 确定了updateQueue
+
+![](https://img.alicdn.com/tfs/TB1_rett.Y1gK0jSZFCXXcwqXXa-823-367.jpg)
+
+3. 确定了每个fiber的stateNode，如下图：
+
+![](https://img.alicdn.com/tfs/TB1KtqptVP7gK0jSZFjXXc5aXXa-568-231.jpg)
+
+###### Commit Phase
+
+当执行完上面的过程后， 就会调用commitRoot方法，进入Commit Phase；在开始时FiberTree的状态如下：
+
+![](https://img.alicdn.com/tfs/TB1fF5tt7T2gK0jSZPcXXcKkpXa-631-314.jpg)
+
+CommitPhase内部又分为以下几个Phase：
+
+![](https://img.alicdn.com/tfs/TB12Wytt7T2gK0jSZPcXXcKkpXa-815-530.jpg)
+
+以我们的例子说明，我们会进入commitMutationEffects，在这个方法中，会开始找HostComponent和HostText，做DOM操作，其中DOM操作调用的方法都是从HostConfig中传入的，
+
+![](https://img.alicdn.com/tfs/TB1sLattYY1gK0jSZTEXXXDQVXa-645-495.jpg)
+
+经过上面的过程，完成了一次完整的render，其中只是重点关注了数据的变化，至于优先级、调度、Suspend、Context、Hook等都直接跳过，后续针对这些具体问题可以再重点关注这些内容；
 
 
 ## 一次Update过程
