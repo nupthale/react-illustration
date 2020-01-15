@@ -1,4 +1,4 @@
-# React初印象
+# 图说React
 
 以下是第一遍大概过React代码的一个记录，中间只记录了一些数据变化（总结还在整理），适用于刚开始看代码的人，对React有更进一步的印象；文章包括两部分：《第一次Render过程》与《一次Update过程》，这两个是最基本的两个过程，以下内容可能本身并不解决任何问题，但是它们是比较重要的一个框架，在了解了框架后，里面的内容就比较容易补充了；
 
@@ -224,4 +224,88 @@ CommitPhase内部又分为以下几个Phase：
 
 ## 一次Update过程
 
+还是上面的例子，介绍当用户点击了按钮Click Me的时候的执行逻辑
+
+![代码示例](https://img.alicdn.com/tfs/TB16yh.t.z1gK0jSZLeXXb9kVXa-414-610.jpg)
+
+##### dispatchDiscreteEvent
+
+当点击按钮的时候， 触发更新,   这个过程并不是简单地调用onClick，然后setName这么简单，这个过程的入口也不在onClick方法上，而是与react内部实现的event机制有关系（目前先忽略这个机制）；我们需要了解的是当用户点击button时，会调用dispatchDiscreteEvent，为什么会调用？这里也大概说一下，是因为在Render过程中，React对内部的element绑定了事件，它会分别调用以下方法，最终当element点击时的回调会设置未dispatchDiscreteEvent，大体如下图：
+
+![](https://img.alicdn.com/tfs/TB133_5t7T2gK0jSZFkXXcIQFXa-483-193.jpg)
+
+当调用dispatchDiscreteEvent时，里面会调用dispatch， 触发onClick，执行setName方法，然后还会调用flushSyncCallbackQueue，这两个步骤是相互关联的，我们先看这个setName做了什么，然后再看flushSyncCallbackQueue；
+
+
+##### dispatchAction(fiber, queue, action)
+
+如果你在setName处断点，那么进入方法后， 你会发现其实你调用的是dispatch方法，并且有如下代码：
+
+![](https://img.alicdn.com/tfs/TB1Itn0t4D1gK0jSZFsXXbldVXa-555-267.jpg)
+
+可以看到通过在调用setName的时候，传入的参数会作为第三个参数，也就是action传入(前两个参数分别是
+currentRenderingFiber$1和queue)，并且通过mountWorkInProgessHook中的实现可以看到，它们的关系如下：
+
+currentRenderingFiber$1.memorizedState = hook
+
+Hook.queue = 上面创建的queue对象
+
+连起来就是:  currentRenderingFiber$1.memorizedState.queue = 上图的queue；结合我们的例子，这里的currentRenderingFiber$1其实就是App节点，因为onClick是在App组件内调用的；
+
+当调用dispatchAction时，会做下面几件事情：
+
+1. 创建一个update对象, 其中action和eagerState都为setName设置的值
+
+![](https://img.alicdn.com/tfs/TB1DEv4tYY1gK0jSZTEXXXDQVXa-391-180.jpg)
+
+2. 更新currentRenderingFiber$1.memorizedState.queue.last为update对象
+
+3. 更新update对象的eagerReducer和eagerState的值，最终结构如下：
+
+![](https://img.alicdn.com/tfs/TB1pLr1t4n1gK0jSZKPXXXvUXXa-684-521.jpg)
+
+4. 判断eagerState和currentState是否相同，如果相同就证明不需要更新，返回什么都不做；如果不相同，那么就调用scheduleWork调度任务；
+
+下面看下在更新时scheduleWork都做了什么
+
+##### scheduleWork(fiber, expirationTime)
+
+我们的例子传入的fiber是App，从App开始，分别会调用如下方法：
+
+1. 当时第一次渲染是满足LegacyUnbatcheCtx | RenderCtx | CommitCtx的，所以调用了performSyncWorkOnRoot，此时走了不同的路径，这个路径就是ensureRootIsScheduled，从代码里可以看到第一次会调用performSyncWorkOnRoot，其他的都会先调用的ensureRootIsScheduled方法，在方法内部，将performSyncWorkOnRoot放到schedule中的队列中
+	
+2. 每次调用都只执行一个task，当一个task执行完后，会再次调用ensureRootIsScheduled，再执行下一个task, 这里是个递归调用；
+
+我们发现ensureRootIsScheduled是另外一个很重要的方法；
+	
+![](https://img.alicdn.com/tfs/TB1sfb4t4v1gK0jSZFFXXb0sXXa-669-420.jpg)
+
+##### ensureRootIsScheduled
+
+因为我们是通过Click点击的，Click事件的update的优先级是Sync级别，所以会接着调用scheduleSyncCallback(performSyncWorkOnRoot.bind(null, root))，这个scheduleSyncCallback做两件事情：
+
+1. 把performSyncWorkOnRoot放到syncQueue数组里
+
+2. 通过Scheduler_scheduleCallback把flushSyncCallbackQueueImpl放到Scheduler的taskQueue中；
+
+如下图：（先忽略那个WIP是否是null的判断， 这个判断的意思是在执行performSyncWorkOnRoot时，如果WIP不是null的话， 还会再次调用ensureRootIsScheduled方法）
+
+![](https://img.alicdn.com/tfs/TB1ogf6t1H2gK0jSZJnXXaT1FXa-700-391.jpg)
+
+目前看到的只是把task放到了queue里面，什么时候执行？其实在第二步放入scheduler的时候，在最后会调用
+requestHostCallback方法，这个方法会使用messageChannel的postMessage方法，这个网上很多解释，暂且理解为requestIdleCallback即可，也就是说postMessage的回调performWorkUntilDeadline会在下一个有Idle空闲时间的帧时执行；如下图：
+
+![](https://img.alicdn.com/tfs/TB1gHr5t7T2gK0jSZPcXXcKkpXa-710-307.jpg)
+
+其中scheduledHostCallback其实是Scheduler内部的flushWork方法，这个方法会调用Scheduler的workLoop，这个workLoop会从taskQueue这个优先级队列中每次取出一个task执行，直到没有剩余时间或者调用shouldYieldToHost，将执行权让步给Host，就会break循环，并返回是否hasMoreWork；
+
+上面说了Scheduler的workLoop，从上面的queue图片可以看到我们的taskQueue中放入的就是flushSyncCallbackQueueImpl方法，也就是这个workLoop会执行flushSyncCallbackQueueImpl方法，这个方法很清晰：遍历syncQueue，并且调用syncQueue里面的方法， 前面提到过我们的syncQueue中是performSyncWorkOnRoot;
+
+![](https://img.alicdn.com/tfs/TB1s.6otV67gK0jSZPfXXahhFXa-709-521.jpg)
+
+注意这里并不是同步就清空syncQueue，而是等下一次Idle时才执行；到目前为止，我们说了setName的路径的执行过程，再回到discreteUpdates，之前提到过：当调用dispatchDiscreteEvent时，里面会调用dispatch， 触发onClick，执行setName方法，然后还会调用flushSyncCallbackQueue；上面介绍了setName，setName执行过后， 还会同步调用flushSyncCallbackQueue，这个方法在setName过程中也出现过，所以不再重复说明，总结下如图：
+
+![](https://img.alicdn.com/tfs/TB1L3n1t8v0gK0jSZKbXXbK2FXa-536-906.jpg)
+
+最后这里有个疑问就是flushSyncCallbackQueue出现了两次，两次都会执行SyncQueue，一个是同步， 一个是下一次Idle时执行，为什么要这么做不是很理解；
 
