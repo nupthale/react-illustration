@@ -309,3 +309,4 @@ requestHostCallback方法，这个方法会使用messageChannel的postMessage方
 
 最后这里有个疑问就是flushSyncCallbackQueue出现了两次，两次都会执行SyncQueue，一个是同步， 一个是下一次Idle时执行，为什么要这么做不是很理解；
 
+到目前为止，大体框架基本走了一遍，内部很多细节还需要填充下；
