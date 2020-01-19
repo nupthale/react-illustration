@@ -2,6 +2,11 @@
 
 以下是第一遍大概过React代码的一个记录，中间只记录了一些数据变化（总结还在整理），适用于刚开始看代码的人，对React有更进一步的印象；文章包括两部分：《第一次Render过程》与《一次Update过程》，这两个是最基本的两个过程，以下内容可能本身并不解决任何问题，但是它们是比较重要的一个框架，在了解了框架后，里面的内容就比较容易补充了；
 
+更多其他细节可参考：
+
+[以HostComponent说明beginWork与completeWork](https://github.com/nupthale/react-illustration/blob/master/beginWork%26completeWork.md)
+
+
 假设有如下代码：
 
 ![代码示例](https://img.alicdn.com/tfs/TB16yh.t.z1gK0jSZLeXXb9kVXa-414-610.jpg)
