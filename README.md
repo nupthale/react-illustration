@@ -4,8 +4,9 @@
 
 更多其他细节可参考：
 
-[以HostComponent说明beginWork与completeWork](https://github.com/nupthale/react-illustration/blob/master/beginWork%26completeWork.md)
-
+* [以HostComponent说明beginWork与completeWork](https://github.com/nupthale/react-illustration/blob/master/beginWork%26completeWork.md)
+* [Why setState之后不会更新](https://github.com/nupthale/react-illustration/blob/master/setState.md)
+* [React ExpirationTime](https://github.com/nupthale/react-illustration/blob/master/expirationTime.md)
 
 假设有如下代码：
 
